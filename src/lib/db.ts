@@ -26,13 +26,13 @@ export function isLow(item: Pick<PantryItem, "quantity" | "low_threshold">) {
   return item.quantity <= item.low_threshold;
 }
 
-const use = <A>(f: (db: SQLiteDatabase) => Promise<A>) =>
+const withDb = <A>(f: (db: SQLiteDatabase) => Promise<A>) =>
   Effect.gen(function* () {
     const db = yield* Database;
     return yield* Effect.tryPromise({ try: () => f(db), catch: (cause) => new DbError({ cause }) });
   });
 
-export const migrate = use(async (db) => {
+export const migrate = withDb(async (db) => {
   await db.execAsync("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
   const row = await db.getFirstAsync<{ user_version: number }>("PRAGMA user_version");
   const version = row?.user_version ?? 0;
@@ -76,12 +76,12 @@ export function defaultThreshold(quantity: number, unit: string) {
 
 const ITEM_COLUMNS = "id, name, category, quantity, unit, low_threshold, updated_at";
 
-export const listItems = use((db) =>
+export const listItems = withDb((db) =>
   db.getAllAsync<PantryItem>(`SELECT ${ITEM_COLUMNS} FROM items ORDER BY category, name COLLATE NOCASE`),
 );
 
 export const getItem = (id: number) =>
-  use((db) => db.getFirstAsync<PantryItem>(`SELECT ${ITEM_COLUMNS} FROM items WHERE id = ?`, id));
+  withDb((db) => db.getFirstAsync<PantryItem>(`SELECT ${ITEM_COLUMNS} FROM items WHERE id = ?`, id));
 
 export type NewItem = {
   name: string;
@@ -92,7 +92,7 @@ export type NewItem = {
 };
 
 export const upsertItem = (item: NewItem) =>
-  use(async (db) => {
+  withDb(async (db) => {
     const key = nameKey(item.name);
     const existing = await db.getFirstAsync<PantryItem>(`SELECT ${ITEM_COLUMNS} FROM items WHERE name_key = ?`, key);
     if (!existing) {
@@ -120,7 +120,7 @@ export const upsertItem = (item: NewItem) =>
 export type ItemFields = Partial<Pick<PantryItem, "name" | "category" | "quantity" | "unit" | "low_threshold">>;
 
 export const updateItem = (id: number, fields: ItemFields) =>
-  use(async (db) => {
+  withDb(async (db) => {
     const sets: string[] = [];
     const values: (string | number)[] = [];
     for (const [key, value] of Object.entries(fields)) {
@@ -136,7 +136,7 @@ export const updateItem = (id: number, fields: ItemFields) =>
     await db.runAsync(`UPDATE items SET ${sets.join(", ")}, updated_at = datetime('now') WHERE id = ?`, ...values, id);
   });
 
-export const deleteItem = (id: number) => use((db) => db.runAsync("DELETE FROM items WHERE id = ?", id));
+export const deleteItem = (id: number) => withDb((db) => db.runAsync("DELETE FROM items WHERE id = ?", id));
 
 /** Runs `effect` inside an exclusive transaction; its queries use the transaction connection. */
 export const transaction = <A, E>(effect: Effect.Effect<A, E, Database>) =>
@@ -157,7 +157,7 @@ export const addReceipt = (receipt: ParsedReceipt, items: ReadonlyArray<ReceiptI
   transaction(
     Effect.gen(function* () {
       yield* Effect.forEach(items, upsertItem, { discard: true });
-      yield* use((db) =>
+      yield* withDb((db) =>
         db.runAsync(
           "INSERT INTO receipts (store, purchased_on, total, item_count) VALUES (?, ?, ?, ?)",
           receipt.store,
