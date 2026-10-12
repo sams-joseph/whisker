@@ -5,6 +5,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
     "effect": "^4.0.3",
+    "eslint-config-expo": "~57.0.2",
     "expo": "~57.0.27",
     "expo-constants": "~57.0.21",
     "expo-haptics": "~57.0.3",
@@ -26,6 +27,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "~57.0.2",
     "typescript": "~6.0.3"
   },
   "scripts": {

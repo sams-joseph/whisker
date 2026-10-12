@@ -36,16 +36,21 @@ export function PantryProvider({ children }: { children: ReactNode }) {
     [database],
   );
 
-  const reload = useCallback(async () => {
-    setItems(await run(db.listItems));
-    setLoading(false);
-  }, [run]);
-
   useEffect(() => {
+    let active = true;
+    const reload = () =>
+      run(db.listItems).then((rows) => {
+        if (!active) return;
+        setItems(rows);
+        setLoading(false);
+      });
     reload();
     const subscription = addDatabaseChangeListener(() => reload());
-    return () => subscription.remove();
-  }, [reload]);
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, [run]);
 
   const value = useMemo<Pantry>(
     () => ({
